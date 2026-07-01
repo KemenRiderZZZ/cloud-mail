@@ -27,13 +27,14 @@ const emailService = {
 
 	async list(c, params, userId) {
 
-		let { emailId, type, accountId, size, timeSort, allReceive } = params;
+		let { emailId, type, accountId, size, timeSort, allReceive, keyword } = params;
 
 		size = Number(size);
 		emailId = Number(emailId);
 		timeSort = Number(timeSort);
 		accountId = Number(accountId);
 		allReceive = Number(allReceive);
+		keyword = keyword?.trim();
 
 		if (size > 50) {
 			size = 50;
@@ -54,6 +55,29 @@ const emailService = {
 			allReceive = accountRow.allReceive;
 		}
 
+		const queryKeyword = keyword ? `%${keyword}%` : null;
+		const searchCondition = queryKeyword
+			? or(
+				sql`${email.name} COLLATE NOCASE LIKE ${queryKeyword}`,
+				sql`${email.sendEmail} COLLATE NOCASE LIKE ${queryKeyword}`,
+				sql`${email.subject} COLLATE NOCASE LIKE ${queryKeyword}`,
+				sql`${email.text} COLLATE NOCASE LIKE ${queryKeyword}`,
+				sql`${email.content} COLLATE NOCASE LIKE ${queryKeyword}`
+			)
+			: undefined;
+
+		const baseConditions = [
+			allReceive ? eq(1,1) : eq(email.accountId, accountId),
+			eq(email.userId, userId),
+			eq(email.type, type),
+			eq(email.isDel, isDel.NORMAL),
+			eq(account.isDel, isDel.NORMAL)
+		];
+
+		if (searchCondition) {
+			baseConditions.push(searchCondition);
+		}
+
 		const query = orm(c)
 			.select({
 				...email,
@@ -72,12 +96,8 @@ const emailService = {
 			)
 			.where(
 				and(
-					allReceive ? eq(1,1) : eq(email.accountId, accountId),
-					eq(email.userId, userId),
 					timeSort ? gt(email.emailId, emailId) : lt(email.emailId, emailId),
-					eq(email.type, type),
-					eq(email.isDel, isDel.NORMAL),
-					eq(account.isDel, isDel.NORMAL)
+					...baseConditions
 				)
 			);
 
@@ -94,23 +114,14 @@ const emailService = {
 				account,
 				eq(account.accountId, email.accountId)
 			)
-			.where(
-				and(
-					allReceive ? eq(1,1) : eq(email.accountId, accountId),
-					eq(email.userId, userId),
-					eq(email.type, type),
-					eq(email.isDel, isDel.NORMAL),
-					eq(account.isDel, isDel.NORMAL)
-				)
-		).get();
+			.where(and(...baseConditions)).get();
 
-		const latestEmailQuery = orm(c).select().from(email).where(
-			and(
-				allReceive ? eq(1,1) : eq(email.accountId, accountId),
-				eq(email.userId, userId),
-				eq(email.type, type),
-				eq(email.isDel, isDel.NORMAL)
-			))
+		const latestEmailQuery = orm(c).select({ ...email }).from(email)
+			.leftJoin(
+				account,
+				eq(account.accountId, email.accountId)
+			)
+			.where(and(...baseConditions))
 			.orderBy(desc(email.emailId)).limit(1).get();
 
 		let [list, totalRow, latestEmail] = await Promise.all([listQuery, totalQuery, latestEmailQuery]);

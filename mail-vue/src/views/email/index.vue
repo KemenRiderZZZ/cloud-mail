@@ -13,6 +13,18 @@
                @jump="jumpContent"
   >
     <template #first>
+      <el-input
+          v-model="searchInput"
+          :placeholder="$t('searchByContent')"
+          class="search-input"
+          clearable
+          @keyup.enter="submitSearch"
+          @clear="clearSearch"
+      >
+        <template #prefix>
+          <Icon class="search-icon" icon="iconoir:search" width="18" height="18" @click="submitSearch"/>
+        </template>
+      </el-input>
       <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-down-outline"
             v-if="params.timeSort === 0" width="28" height="28"/>
       <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-up-outline" v-else
@@ -29,7 +41,7 @@ import {useSettingStore} from "@/store/setting.js";
 import emailScroll from "@/components/email-scroll/index.vue"
 import {emailList, emailDelete, emailLatest, emailRead} from "@/request/email.js";
 import {starAdd, starCancel} from "@/request/star.js";
-import {defineOptions, h, onMounted, reactive, ref, watch} from "vue";
+import {defineOptions, onMounted, reactive, ref, watch} from "vue";
 import {sleep} from "@/utils/time-utils.js";
 import router from "@/router/index.js";
 import {Icon} from "@iconify/vue";
@@ -44,6 +56,8 @@ const emailStore = useEmailStore();
 const accountStore = useAccountStore();
 const settingStore = useSettingStore();
 const scroll = ref({})
+const searchInput = ref('')
+const keyword = ref('')
 const params = reactive({
   timeSort: 0,
 })
@@ -58,8 +72,32 @@ watch(() => accountStore.currentAccountId, () => {
   scroll.value.refreshList();
 })
 
+watch(searchInput, (value) => {
+  if (!value && keyword.value) {
+    clearSearch()
+  }
+})
+
 function changeTimeSort() {
   params.timeSort = params.timeSort ? 0 : 1
+  scroll.value.refreshList();
+}
+
+function submitSearch() {
+  const nextKeyword = searchInput.value.trim();
+  if (nextKeyword === keyword.value) {
+    return;
+  }
+  keyword.value = nextKeyword;
+  scroll.value.refreshList();
+}
+
+function clearSearch() {
+  if (!searchInput.value && !keyword.value) {
+    return;
+  }
+  searchInput.value = '';
+  keyword.value = '';
   scroll.value.refreshList();
 }
 
@@ -81,6 +119,10 @@ async function latest() {
     await sleep(autoRefresh > 1 ? autoRefresh * 1000 : 3000);
 
     if (route.name !== 'email') {
+      continue;
+    }
+
+    if (keyword.value) {
       continue;
     }
 
@@ -141,7 +183,7 @@ function cancelStar(email) {
 function getEmailList(emailId, size) {
   const accountId =  accountStore.currentAccountId;
   const allReceive = accountStore.currentAccount.allReceive;
-  return emailList(accountId, allReceive, emailId, params.timeSort, size, 0).then(data => {
+  return emailList(accountId, allReceive, emailId, params.timeSort, size, 0, keyword.value).then(data => {
     data.latestEmail.reqAccountId = accountId;
     data.latestEmail.allReceive = allReceive;
     return data;
@@ -152,5 +194,19 @@ function getEmailList(emailId, size) {
 <style>
 .icon {
   cursor: pointer;
+}
+
+.search-input {
+  width: 100%;
+  max-width: 280px;
+  height: 28px;
+}
+
+.search-icon {
+  cursor: pointer;
+}
+
+.search-input :deep(.el-input__wrapper) {
+  min-height: 28px;
 }
 </style>
