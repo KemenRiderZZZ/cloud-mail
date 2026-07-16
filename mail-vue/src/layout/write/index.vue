@@ -428,11 +428,11 @@ function resetForm() {
   backReply.subject = ''
   backReply.receiveEmail = []
   backReply.sendType = ''
-  editor.value.clearEditor?.()
+  editor.value?.clearEditor?.()
 }
 
 function currentEditorContent() {
-  return editor.value.getContent?.() || form.content || ''
+  return editor.value?.getContent?.() || form.content || ''
 }
 
 function hasUnfinishedMail() {
@@ -571,7 +571,7 @@ async function openMailto(payload) {
   await nextTick()
   defValue.value = form.content
   await nextTick()
-  editor.value.focus?.()
+  editor.value?.focus?.()
 
   if (payload.warnings.length) {
     ElNotification({
