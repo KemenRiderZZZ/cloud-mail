@@ -22,6 +22,14 @@ id = "${KV_NAMESPACE_ID}"
 binding = "r2"
 bucket_name = "${R2_BUCKET_NAME}"
 
+[[durable_objects.bindings]]
+name = "USER_MAIL_HUB"
+class_name = "UserMailHub"
+
+[exports.UserMailHub]
+type = "durable-object"
+storage = "sqlite"
+
 [ai]
 binding = "ai"
 

@@ -4,14 +4,16 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev --config wrangler-dev.toml",
-		"test": "wrangler deploy --config wrangler-test.toml",
+		"test": "vitest run",
+		"test:config": "wrangler deploy --dry-run --config wrangler-test.toml",
+		"deploy:test": "wrangler deploy --config wrangler-test.toml",
 		"deploy": "wrangler deploy",
 		"start": "wrangler dev"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.7.5",
+		"vite": "6.3.5",
 		"vitest": "~3.0.7",
-		"wrangler": "^4.90.0"
+		"wrangler": "^4.111.0"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.882.0",

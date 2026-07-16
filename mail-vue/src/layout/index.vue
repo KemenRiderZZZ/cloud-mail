@@ -32,10 +32,8 @@ import {useRoute, useRouter} from 'vue-router'
 import {useI18n} from 'vue-i18n'
 import {parseMailto, storePendingMailto, takePendingMailto} from '@/utils/mailto.js'
 import {createNewMailNotifier} from '@/services/new-mail-notifier.js'
-import {useSettingStore} from '@/store/setting.js'
 
 const uiStore = useUiStore();
-const settingStore = useSettingStore()
 const route = useRoute()
 const router = useRouter()
 const {t} = useI18n()
@@ -88,17 +86,6 @@ watch(() => route.query.mailto, value => {
   }
 })
 
-function syncMailNotifier() {
-  if (!mounted) return
-  if (settingStore.mailNotificationsEnabled || Number(settingStore.settings.autoRefresh) > 1) mailNotifier.start()
-  else mailNotifier.stop()
-}
-
-watch(
-    () => [settingStore.mailNotificationsEnabled, settingStore.settings.autoRefresh],
-    syncMailNotifier
-)
-
 onMounted(async () => {
   uiStore.writerRef = writerRef
   mounted = true
@@ -106,7 +93,7 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize)
   handleResize()
 
-  syncMailNotifier()
+  mailNotifier.start()
 
   if (typeof route.query.mailto === 'string') {
     await consumeMailto(route.query.mailto, true)

@@ -93,6 +93,12 @@ app.use('*', async (c, next) => {
 
 	const path = c.req.path;
 
+	// The WebSocket handshake authenticates its short-lived ticket itself.
+	// Keep the ticket issuing endpoint behind the normal Authorization middleware.
+	if (path === '/realtime') {
+		return await next();
+	}
+
 	const index = exclude.findIndex(item => {
 		return path.startsWith(item);
 	});

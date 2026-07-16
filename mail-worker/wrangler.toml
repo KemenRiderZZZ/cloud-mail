@@ -19,6 +19,14 @@ id = "bdc1e7bc25c34a76817747b0ea95f602"
 binding = "r2"
 bucket_name = "cloud-mail"
 
+[[durable_objects.bindings]]
+name = "USER_MAIL_HUB"
+class_name = "UserMailHub"
+
+[exports.UserMailHub]
+type = "durable-object"
+storage = "sqlite"
+
 #[[send_email]]
 #name = "email"			#CF发件, 配置后优先使用
 

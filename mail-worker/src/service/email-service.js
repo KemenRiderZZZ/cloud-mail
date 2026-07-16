@@ -22,6 +22,7 @@ import domainUtils from '../utils/domain-uitls';
 import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
+import { notifyUserMailChangedSafely } from './realtime-service';
 
 const emailService = {
 
@@ -628,6 +629,7 @@ const emailService = {
 
 		//保存邮件
 		const receiveEmailList = emailDataList.filter(emailRow => emailRow.status === emailConst.status.RECEIVE || emailRow.status === emailConst.status.NOONE);
+		const changedByUser = new Map();
 
 		for (const emailData of receiveEmailList) {
 
@@ -643,7 +645,15 @@ const emailService = {
 				await orm(c).insert(att).values(attValues).run();
 			}
 
+			if (emailRow.status === emailConst.status.RECEIVE && emailRow.userId > 0) {
+				changedByUser.set(emailRow.userId, Math.max(changedByUser.get(emailRow.userId) || 0, emailRow.emailId));
+			}
+
 		}
+
+		await Promise.all([...changedByUser].map(([userId, latestEmailId]) =>
+			notifyUserMailChangedSafely(c.env, userId, latestEmailId)
+		));
 
 		const bouncedEmail = emailDataList.find(emailRow => emailRow.status === emailConst.status.BOUNCED);
 

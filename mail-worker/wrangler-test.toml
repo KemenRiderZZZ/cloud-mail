@@ -9,13 +9,21 @@ enabled = true
 [[d1_databases]]
 binding = "db"			#d1数据库绑定名默认不可修改
 database_name = "test-email"		#d1数据库名字
-database_id = "e65f099d-796d-4eaa-8dff-529b368b20db"		#d1数据库id
+database_id = "7cd4dfae-715d-4c61-8c05-ef9deca6ff44"		#d1数据库id
 
 [[kv_namespaces]]
 binding = "kv"			#kv绑定名默认不可修改
-id = "9be10cd058e04c55b526f8c0c116f50c"					#kv数据库id
+id = "bd2cab03b62f465d945fb679070ddd6e"					#kv数据库id
 
 #(可选)
+[[durable_objects.bindings]]
+name = "USER_MAIL_HUB"
+class_name = "UserMailHub"
+
+[exports.UserMailHub]
+type = "durable-object"
+storage = "sqlite"
+
 #[[r2_buckets]]
 #binding = "r2"			#r2对象存储绑定名默认不可修改
 #bucket_name = "test-email"		#r2对象存储桶的名字

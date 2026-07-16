@@ -6,6 +6,8 @@ import emailService from './service/email-service';
 import kvObjService from './service/kv-obj-service';
 import oauthService from "./service/oauth-service";
 import analysisService from './service/analysis-service';
+export { UserMailHub } from './realtime/user-mail-hub';
+
 export default {
 	 async fetch(req, env, ctx) {
 
