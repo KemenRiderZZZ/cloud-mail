@@ -29,6 +29,18 @@
     </p>
 </p>
 
+## 本 Fork 的维护说明
+
+本仓库是基于上游项目 [maillab/cloud-mail](https://github.com/maillab/cloud-mail) 的部署与功能维护 fork，遵循上游的 MIT 许可证。生产实例部署在 [mail.kamenr.com](https://mail.kamenr.com)。
+
+本 fork 当前包含以下本地化功能：
+
+- **`mailto:` 写信入口**：支持从邮件链接预填收件人、主题和正文；发件账号固定为已授权的 `admin@kamenr.com`，仍须由用户手动点击发送。
+- **实时收件刷新**：Cloud Mail 运行时通过 Cloudflare Durable Objects + WebSocket 通知邮件变更，连接中断时自动退回现有轮询机制，避免手动刷新才能看到新邮件。
+- **运行时新邮件提醒**：可在个人设置中启用站内与系统通知；应用完全关闭后不会使用 Web Push 推送。
+
+部署本 fork 时请自行配置 Cloudflare Worker、D1、KV、R2、邮件路由和域名变量；仓库不包含生产密钥、账号或邮件内容。上游通用功能问题请优先向上游反馈；本 fork 的部署与上述定制功能问题请在本仓库提交 Issue。
+
 
 ## 项目简介
 

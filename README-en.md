@@ -29,6 +29,18 @@
     </p>
 </p>
 
+## Fork maintenance notes
+
+This repository is a deployment and feature-maintenance fork of [maillab/cloud-mail](https://github.com/maillab/cloud-mail), distributed under the upstream MIT license. Its production instance is available at [mail.kamenr.com](https://mail.kamenr.com).
+
+This fork currently adds:
+
+- **`mailto:` compose entry point**: recipient, subject, and body are prefilled from a mail link. The authorized `admin@kamenr.com` account is selected, but sending always requires an explicit user action.
+- **Real-time inbox refresh**: while Cloud Mail is running, Cloudflare Durable Objects and WebSocket signals refresh incoming mail. Existing polling automatically acts as the fallback whenever the connection is unavailable.
+- **Runtime new-mail notifications**: in-app and system notifications can be enabled in Personal Settings. No Web Push is sent after the app is fully closed.
+
+Anyone deploying this fork must configure their own Cloudflare Worker, D1, KV, R2, email routing, and domain variables. No production credentials, account data, or email content are stored in this repository. Please report upstream general-feature issues upstream; use this repository's Issues for this fork's deployment and custom features.
+
 ## Description
 With only one domain, you can create multiple different email addresses, similar to major email platforms. This project can be deployed on Cloudflare Workers to reduce server costs and build your own email service.
 ## Project Showcase
