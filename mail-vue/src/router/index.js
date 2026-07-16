@@ -3,6 +3,7 @@ import NProgress from 'nprogress';
 import {useUiStore} from "@/store/ui.js";
 import {useSettingStore} from "@/store/setting.js";
 import {cvtR2Url} from "@/utils/convert.js";
+import {storePendingMailto} from "@/utils/mailto.js";
 
 const routes = [
     {
@@ -99,6 +100,10 @@ router.beforeEach((to, from, next) => {
     }
 
     const token = localStorage.getItem('token')
+
+    if (!token && typeof to.query.mailto === 'string') {
+        storePendingMailto(to.query.mailto)
+    }
 
     if (!token && to.name !== 'login') {
         return next({name: 'login'})

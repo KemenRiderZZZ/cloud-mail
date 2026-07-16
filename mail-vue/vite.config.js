@@ -30,6 +30,12 @@ export default defineConfig(({mode}) => {
                             type: 'image/png',
                         }
                     ],
+                    protocol_handlers: [
+                        {
+                            protocol: 'mailto',
+                            url: '/inbox?mailto=%s',
+                        }
+                    ],
                 },
                 workbox: {
                     disableDevLogs: true,

@@ -406,6 +406,7 @@ async function saveToken(token) {
   const user = await loginUserInfo();
   accountStore.currentAccountId = user.account.accountId;
   accountStore.currentAccount = user.account;
+  accountStore.mergeAccounts([user.account]);
   userStore.user = user;
   const routers = permsToRouter(user.permKeys);
   routers.forEach(routerData => {

@@ -8,11 +8,12 @@ export const useSettingStore = defineStore('setting', {
             loginOpacity: 1.00,
         },
         lang: '',
+        mailNotificationsEnabled: false,
     }),
     actions: {
 
     },
     persist: {
-        pick: ['lang'],
+        pick: ['lang', 'mailNotificationsEnabled'],
     },
 })

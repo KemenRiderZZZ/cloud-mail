@@ -114,15 +114,20 @@ import dayjs from "dayjs";
 import {useI18n} from "vue-i18n";
 import router from "@/router/index.js";
 import {ElMessageBox} from "element-plus";
+import {plainTextToSafeHtml} from "@/utils/mailto.js";
+import {accountList} from "@/request/account.js";
+import {hasPerm} from "@/perm/perm.js";
 
 defineExpose({
   open,
+  openMailto,
   openReply,
   openForward,
   openDraft
 })
 
 const {t} = useI18n()
+const MAILTO_SENDER = 'admin@kamenr.com'
 const writerStore = useWriterStore();
 const draftStore = userDraftStore()
 const settingStore = useSettingStore()
@@ -134,6 +139,7 @@ const show = ref(false);
 const percent = ref(0)
 let percentMessage = null
 let sending = false
+let currentSendPromise = Promise.resolve()
 const defValue = ref('')
 const contactsTabRef = ref({})
 const showContacts = ref(false)
@@ -351,7 +357,7 @@ async function sendEmail() {
 
   show.value = false
 
-  emailSend(form, (e) => {
+  currentSendPromise = emailSend(form, (e) => {
     percent.value = Math.round((e.loaded * 98) / e.total)
   }).then(emailList => {
     const email = emailList[0]
@@ -412,6 +418,7 @@ function resetForm() {
   form.receiveEmail = []
   form.subject = ''
   form.content = ''
+  form.text = ''
   form.manyType = null
   form.attachments = []
   form.sendType = ''
@@ -421,7 +428,161 @@ function resetForm() {
   backReply.subject = ''
   backReply.receiveEmail = []
   backReply.sendType = ''
-  editor.value.clearEditor()
+  editor.value.clearEditor?.()
+}
+
+function currentEditorContent() {
+  return editor.value.getContent?.() || form.content || ''
+}
+
+function hasUnfinishedMail() {
+  return Boolean(
+      currentEditorContent()
+      || form.subject
+      || form.receiveEmail.length
+      || form.attachments.length
+  )
+}
+
+async function findMailtoSender() {
+  const findSender = () => [userStore.user.account, ...accountStore.accounts]
+      .filter(Boolean)
+      .find(account => account.email?.toLowerCase() === MAILTO_SENDER)
+
+  let sender = findSender()
+  if (sender) return sender
+  if (!hasPerm('account:query')) return undefined
+
+  const accounts = []
+  let accountId = 0
+  let lastSort
+  for (let page = 0; page < 200; page++) {
+    const list = await accountList(accountId, 30, lastSort)
+    accounts.push(...list)
+    if (list.length < 30) break
+    accountId = list.at(-1).accountId
+    lastSort = list.at(-1).sort
+  }
+  accountStore.mergeAccounts(accounts)
+  return findSender()
+}
+
+async function saveCurrentDraft() {
+  form.content = currentEditorContent()
+  const formData = {...toRaw(form)}
+  const attachments = toRaw(form.attachments)
+  const draftId = formData.draftId
+  delete formData.draftId
+  delete formData.attachments
+
+  if (draftId) {
+    await db.value.draft.update(draftId, formData)
+    await db.value.att.put({draftId, attachments})
+  } else {
+    formData.createTime = dayjs().utc().format('YYYY-MM-DD HH:mm:ss')
+    const newDraftId = await db.value.draft.add(formData)
+    await db.value.att.put({draftId: newDraftId, attachments})
+  }
+  draftStore.refreshList++
+}
+
+function mailtoWarningText(warning) {
+  if (warning.code === 'unsupported-parameter') {
+    return t('mailtoUnsupportedParameter', {parameter: warning.parameter})
+  }
+  if (warning.code === 'invalid-recipient') {
+    return t('mailtoInvalidRecipient', {recipient: warning.recipient})
+  }
+  if (warning.code === 'subject-truncated') return t('mailtoSubjectTruncated')
+  if (warning.code === 'body-truncated') return t('mailtoBodyTruncated')
+  if (warning.code === 'uri-truncated') return t('mailtoUriTruncated')
+  return t('mailtoInvalidUri')
+}
+
+async function openMailto(payload) {
+  if (payload.warnings.some(warning => warning.code === 'invalid-uri')) {
+    ElMessage({message: t('mailtoInvalidUri'), type: 'error', plain: true})
+    return false
+  }
+
+  if (!hasPerm('email:send')) {
+    ElNotification({
+      title: t('mailtoOpenFailed'),
+      message: t('mailtoAdminRequired', {email: MAILTO_SENDER}),
+      type: 'error',
+      position: 'bottom-right'
+    })
+    return false
+  }
+
+  const sender = await findMailtoSender()
+  if (!sender) {
+    ElNotification({
+      title: t('mailtoOpenFailed'),
+      message: t('mailtoAdminRequired', {email: MAILTO_SENDER}),
+      type: 'error',
+      position: 'bottom-right'
+    })
+    return false
+  }
+
+  if (sending) {
+    ElMessage({message: t('mailtoWaitingForSend'), type: 'info', plain: true})
+    await currentSendPromise
+  }
+
+  if (show.value && hasUnfinishedMail()) {
+    try {
+      await ElMessageBox.confirm(t('mailtoDraftConflict'), {
+        confirmButtonText: t('mailtoSaveAndOpen'),
+        cancelButtonText: t('cancel'),
+        type: 'warning',
+        distinguishCancelAndClose: true,
+      })
+    } catch {
+      return false
+    }
+
+    try {
+      await saveCurrentDraft()
+    } catch (error) {
+      console.error('Draft save failed before mailto activation', error)
+      ElNotification({
+        title: t('mailtoOpenFailed'),
+        message: t('mailtoDraftSaveFailed'),
+        type: 'error',
+        position: 'bottom-right'
+      })
+      return false
+    }
+  }
+
+  resetForm()
+  form.sendEmail = sender.email
+  form.accountId = sender.accountId
+  form.name = sender.name || userStore.user.name || sender.email.split('@')[0]
+  form.receiveEmail = [...payload.to]
+  form.subject = payload.subject
+  form.content = plainTextToSafeHtml(payload.bodyText)
+  form.text = payload.bodyText
+  defValue.value = ''
+  show.value = true
+
+  await nextTick()
+  defValue.value = form.content
+  await nextTick()
+  editor.value.focus?.()
+
+  if (payload.warnings.length) {
+    ElNotification({
+      title: t('mailtoWarningTitle'),
+      message: payload.warnings.map(mailtoWarningText).join('；'),
+      type: 'warning',
+      position: 'bottom-right'
+    })
+  }
+
+  return true
 }
 
 function change(content, text) {

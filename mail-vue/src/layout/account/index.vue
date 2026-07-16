@@ -187,6 +187,7 @@ if (hasPerm('account:query')) {
 
 watch(() => accountStore.changeUserAccountName, () => {
   accounts[0].name = accountStore.changeUserAccountName
+  accountStore.mergeAccounts(accounts)
 })
 
 watch(() => settingStore.domainList, (list) => {
@@ -248,6 +249,7 @@ function setName() {
   setNameLoading.value = true
   accountSetName(account.accountId, name).then(() => {
     account.name = name
+    accountStore.mergeAccounts([account])
     setNameShow.value = false
 
     if (account.accountId === userStore.user.account.accountId) {
@@ -278,6 +280,7 @@ function setAllReceive(account) {
     account.allReceive = account.allReceive === AccountAllReceiveEnum.DISABLED ? AccountAllReceiveEnum.ENABLED : AccountAllReceiveEnum.DISABLED;
     if (allReceiveAccount) allReceiveAccount.allReceive = AccountAllReceiveEnum.ENABLED;
   }).then(() => {
+    accountStore.mergeAccounts(accounts)
     if (account.allReceive === AccountAllReceiveEnum.ENABLED) {
       ElMessage({
         message: t('setSuccess'),
@@ -311,6 +314,7 @@ function remove(account) {
     accountDelete(account.accountId).then(() => {
       const index = accounts.findIndex(item => item.accountId === account.accountId);
       accounts.splice(index, 1);
+      accountStore.removeAccount(account.accountId)
       if (accounts.length < queryParams.size) {
         getAccountList()
       }
@@ -361,6 +365,7 @@ function setAsTop(account, index) {
 
     const [item] = accounts.splice(index, 1);
     accounts.splice(1, 0, item);
+    accountStore.mergeAccounts(accounts)
 
   });
 }
@@ -414,6 +419,7 @@ function getAccountList() {
     }
 
     accounts.push(...list)
+    accountStore.mergeAccounts(list)
 
     loading.value = false
     followLoading.value = false
@@ -485,6 +491,7 @@ function submit() {
     showAdd.value = false
     addForm.email = ''
     accounts.push(account)
+    accountStore.mergeAccounts([account])
     verifyToken = ''
     settingStore.settings.addVerifyOpen = account.addVerifyOpen
     ElMessage({

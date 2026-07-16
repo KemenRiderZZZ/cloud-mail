@@ -30,6 +30,31 @@
         </div>
       </div>
     </div>
+    <div class="preferences">
+      <div class="title">{{$t('defaultSendingEmail')}}</div>
+      <div class="preference-item">
+        <div>
+          <div class="preference-name">{{$t('mailtoHandler')}}</div>
+          <div class="preference-desc">{{$t('mailtoHandlerDesc')}}</div>
+        </div>
+        <div class="preference-actions">
+          <el-button type="primary" @click="registerMailtoHandler">{{$t('registerMailtoHandler')}}</el-button>
+          <el-button @click="openDefaultApps">{{$t('openWindowsDefaultApps')}}</el-button>
+        </div>
+        <div v-if="mailtoRegistrationStatus" class="preference-status">{{mailtoRegistrationStatus}}</div>
+      </div>
+      <div class="preference-item notification-item">
+        <div>
+          <div class="preference-name">{{$t('newMailNotifications')}}</div>
+          <div class="preference-desc">{{$t('newMailNotificationsDesc')}}</div>
+        </div>
+        <el-switch
+            :model-value="settingStore.mailNotificationsEnabled"
+            @change="toggleMailNotifications"
+        />
+        <div class="preference-status">{{notificationStatus}}</div>
+      </div>
+    </div>
     <div class="language">
       <div class="title">{{$t('language')}}</div>
       <el-select
@@ -78,10 +103,57 @@ const setPwdLoading = ref(false)
 const setNameShow = ref(false)
 const accountName = ref(null)
 const langSelect = ref(settingStore.lang)
+const mailtoRegistrationStatus = ref('')
+const notificationStatus = ref(getNotificationStatus())
 
 defineOptions({
   name: 'setting'
 })
+
+function getNotificationStatus() {
+  if (!('Notification' in window)) return t('desktopNotificationsUnsupported')
+  if (Notification.permission === 'granted') return t('desktopNotificationsGranted')
+  if (Notification.permission === 'denied') return t('desktopNotificationsDenied')
+  return t('desktopNotificationsNotRequested')
+}
+
+function registerMailtoHandler() {
+  if (!navigator.registerProtocolHandler) {
+    mailtoRegistrationStatus.value = t('mailtoHandlerUnsupported')
+    return
+  }
+
+  try {
+    navigator.registerProtocolHandler('mailto', `${window.location.origin}/inbox?mailto=%s`)
+    mailtoRegistrationStatus.value = t('mailtoRegistrationRequested')
+  } catch (error) {
+    console.error('mailto registration failed', error)
+    mailtoRegistrationStatus.value = t('mailtoRegistrationFailed')
+  }
+}
+
+function openDefaultApps() {
+  window.open('ms-settings:defaultapps', '_self')
+}
+
+async function toggleMailNotifications(enabled) {
+  if (!enabled) {
+    settingStore.mailNotificationsEnabled = false
+    notificationStatus.value = getNotificationStatus()
+    return
+  }
+
+  if ('Notification' in window && Notification.permission === 'default') {
+    try {
+      await Notification.requestPermission()
+    } catch (error) {
+      console.error('notification permission request failed', error)
+    }
+  }
+
+  settingStore.mailNotificationsEnabled = true
+  notificationStatus.value = getNotificationStatus()
+}
 
 function showSetName() {
   accountName.value = userStore.user.name
@@ -283,6 +355,54 @@ function submitPwd() {
 
     .language-select {
       width: 100px;
+    }
+  }
+
+  .preferences {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 40px;
+
+    .preference-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+      max-width: 720px;
+      padding: 16px;
+      border: 1px solid var(--el-border-color);
+      border-radius: 8px;
+    }
+
+    .notification-item {
+      grid-template-columns: minmax(0, 1fr) auto;
+
+      .preference-status {
+        grid-column: 1 / -1;
+      }
+    }
+
+    .preference-name {
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .preference-desc,
+    .preference-status {
+      margin-top: 5px;
+      color: var(--regular-text-color);
+      font-size: 13px;
+      white-space: normal;
+    }
+
+    .preference-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+
+      .el-button {
+        margin-left: 0;
+      }
     }
   }
 

@@ -40,6 +40,7 @@ export async function init() {
         if (user) {
             accountStore.currentAccountId = user.account.accountId;
             accountStore.currentAccount = user.account;
+            accountStore.mergeAccounts([user.account]);
             userStore.user = user;
 
             const routers = permsToRouter(user.permKeys);
