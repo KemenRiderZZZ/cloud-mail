@@ -66,15 +66,21 @@ describe('push subscription validation', () => {
 		expect(() => normalizePushSubscription({ ...input, endpoint: 'https://192.168.1.1/push' })).toThrow();
 	});
 
-	it('does not include the email body in notification payloads', () => {
+	it('shows sender, subject and a safe plain-text message preview', () => {
 		const payload = buildPushPayload({
 			emailId: 42,
 			name: 'Sender',
 			subject: 'Subject',
-			text: 'private message body',
+			text: 'First line\nSecond line',
+			content: '<script>alert("not notification content")</script>',
 		});
-		expect(payload).toMatchObject({emailId: 42, body: 'Sender · Subject', url: '/inbox'});
-		expect(JSON.stringify(payload)).not.toContain('private message body');
+		expect(payload).toMatchObject({
+			emailId: 42,
+			title: 'Sender',
+			body: 'Subject\nFirst line Second line',
+			url: '/inbox',
+		});
+		expect(JSON.stringify(payload)).not.toContain('not notification content');
 	});
 });
 

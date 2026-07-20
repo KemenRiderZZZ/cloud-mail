@@ -9,6 +9,7 @@ import KvConst from '../const/kv-const';
 
 export const MAX_PUSH_SUBSCRIPTIONS_PER_USER = 5;
 export const PUSH_PAYLOAD_MAX_LENGTH = 240;
+export const PUSH_PREVIEW_MAX_LENGTH = 160;
 
 const PUSH_CONCURRENCY = 4;
 const PUSH_TTL_SECONDS = 24 * 60 * 60;
@@ -231,14 +232,22 @@ function truncate(value, length = PUSH_PAYLOAD_MAX_LENGTH) {
 	return text.length > length ? `${text.slice(0, length - 1)}…` : text;
 }
 
+function buildMessagePreview(emailRow) {
+	return truncate(
+		String(emailRow?.text || '').replace(/[\u0000-\u001f\u007f\s]+/g, ' '),
+		PUSH_PREVIEW_MAX_LENGTH,
+	);
+}
+
 export function buildPushPayload(emailRow) {
 	const emailId = Number(emailRow?.emailId);
 	const sender = truncate(emailRow?.name || emailRow?.sendEmail || '新发件人', 80);
 	const subject = truncate(emailRow?.subject || '无主题');
+	const preview = buildMessagePreview(emailRow);
 	return {
 		type: 'mail.received',
-		title: 'Cloud Mail',
-		body: `${sender} · ${subject}`,
+		title: sender,
+		body: preview ? `${subject}\n${preview}` : subject,
 		icon: '/mail-pwa.png',
 		badge: '/mail-pwa.png',
 		tag: Number.isSafeInteger(emailId) && emailId > 0 ? `cloud-mail-${emailId}` : 'cloud-mail-new',
