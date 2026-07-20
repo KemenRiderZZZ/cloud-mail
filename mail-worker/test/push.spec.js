@@ -53,6 +53,12 @@ function pushEnv({ secret, rows = [], tokens = ['session-token'], run = vi.fn(as
 	};
 }
 
+function deferred() {
+	let resolve;
+	const promise = new Promise(done => { resolve = done; });
+	return {promise, resolve};
+}
+
 describe('push subscription validation', () => {
 	it('accepts a browser subscription and rejects unsafe endpoints', async () => {
 		const input = await browserSubscription();
@@ -80,6 +86,7 @@ describe('push subscription validation', () => {
 			body: 'Subject\nFirst line Second line',
 			url: '/inbox',
 		});
+		expect(payload.sentAt).toEqual(expect.any(Number));
 		expect(JSON.stringify(payload)).not.toContain('not notification content');
 	});
 });
@@ -111,6 +118,36 @@ describe('push configuration and delivery isolation', () => {
 		expect(send.mock.calls[0][0].endpoint).toContain('/active');
 	});
 
+	it('starts session and subscription lookups in parallel', async () => {
+		const gate = deferred();
+		const started = [];
+		const env = {
+			kv: {
+				get: vi.fn(async () => {
+					started.push('kv');
+					await gate.promise;
+					return {tokens: []};
+				}),
+			},
+			db: {
+				prepare: vi.fn(() => ({
+					bind() { return this; },
+					all: vi.fn(async () => {
+						started.push('d1');
+						await gate.promise;
+						return {results: []};
+					}),
+				})),
+			},
+		};
+
+		const delivery = sendPushToUser(env, 7, {emailId: 10});
+		await new Promise(resolve => setTimeout(resolve, 0));
+		expect(started).toEqual(['kv', 'd1']);
+		gate.resolve();
+		await expect(delivery).resolves.toEqual({delivered: 0, failed: 0});
+	});
+
 	it('builds and sends an RFC 8291 encrypted request with Web Crypto', async () => {
 		const generated = await vapidSecret();
 		const subscription = await browserSubscription();
@@ -136,6 +173,8 @@ describe('push configuration and delivery isolation', () => {
 		const [, init] = fetchMock.mock.calls[0];
 		expect(init.headers['Content-Encoding']).toBe('aes128gcm');
 		expect(init.headers.Authorization).toMatch(/^vapid /);
+		expect(init.headers.Urgency).toBe('high');
+		expect(init.headers.TTL).toBe('300');
 		expect(init.body.byteLength).toBeGreaterThan(0);
 	});
 

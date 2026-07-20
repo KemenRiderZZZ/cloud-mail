@@ -12,7 +12,7 @@ export const PUSH_PAYLOAD_MAX_LENGTH = 240;
 export const PUSH_PREVIEW_MAX_LENGTH = 160;
 
 const PUSH_CONCURRENCY = 4;
-const PUSH_TTL_SECONDS = 24 * 60 * 60;
+const PUSH_TTL_SECONDS = 5 * 60;
 const MAX_ENDPOINT_LENGTH = 2048;
 const MAX_P256DH_LENGTH = 512;
 const MAX_AUTH_LENGTH = 128;
@@ -253,6 +253,7 @@ export function buildPushPayload(emailRow) {
 		tag: Number.isSafeInteger(emailId) && emailId > 0 ? `cloud-mail-${emailId}` : 'cloud-mail-new',
 		url: '/inbox',
 		emailId: Number.isSafeInteger(emailId) && emailId > 0 ? emailId : 0,
+		sentAt: Date.now(),
 	};
 }
 
@@ -276,20 +277,22 @@ async function removeExpiredEndpoint(env, endpoint) {
 export async function sendPushToUser(env, userId, emailRow, send = null) {
 	const normalizedUserId = Number(userId);
 	if (!Number.isSafeInteger(normalizedUserId) || normalizedUserId <= 0) return { delivered: 0, failed: 0 };
+	const startedAt = Date.now();
 
-	const authInfo = await env.kv.get(KvConst.AUTH_INFO + normalizedUserId, { type: 'json' });
-	const activeSessions = new Set(await Promise.all(
-		(Array.isArray(authInfo?.tokens) ? authInfo.tokens : []).map(createSessionTokenIdentifier),
-	));
-	if (!activeSessions.size) return { delivered: 0, failed: 0 };
-
-	const queryResult = await env.db.prepare(`
+	const authInfoPromise = env.kv.get(KvConst.AUTH_INFO + normalizedUserId, { type: 'json' });
+	const subscriptionsPromise = env.db.prepare(`
 		SELECT endpoint, p256dh, auth, session_token
 		FROM push_subscription
 		WHERE user_id = ?
 		ORDER BY update_time DESC, push_subscription_id DESC
 		LIMIT ?
 	`).bind(normalizedUserId, MAX_PUSH_SUBSCRIPTIONS_PER_USER).all();
+	const [authInfo, queryResult] = await Promise.all([authInfoPromise, subscriptionsPromise]);
+	const activeSessions = new Set(await Promise.all(
+		(Array.isArray(authInfo?.tokens) ? authInfo.tokens : []).map(createSessionTokenIdentifier),
+	));
+	if (!activeSessions.size) return { delivered: 0, failed: 0 };
+
 	const results = (queryResult.results || []).filter(row => activeSessions.has(row.session_token));
 	if (!results.length) return { delivered: 0, failed: 0 };
 
@@ -337,7 +340,16 @@ export async function sendPushToUser(env, userId, emailRow, send = null) {
 	});
 
 	const delivered = outcomes.filter(Boolean).length;
-	return { delivered, failed: outcomes.length - delivered };
+	const failed = outcomes.length - delivered;
+	console.info(JSON.stringify({
+		event: 'push.mail.accepted',
+		userId: normalizedUserId,
+		emailId: Number(emailRow?.emailId) || 0,
+		delivered,
+		failed,
+		durationMs: Date.now() - startedAt,
+	}));
+	return { delivered, failed };
 }
 
 export async function sendPushToUserSafely(env, userId, emailRow) {

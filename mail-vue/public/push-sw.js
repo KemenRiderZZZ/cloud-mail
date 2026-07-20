@@ -13,21 +13,26 @@ self.addEventListener('push', event => {
   event.waitUntil((async () => {
     const payload = safePayload(event)
     const windowClients = await clients.matchAll({type: 'window', includeUncontrolled: true})
-    await Promise.all(windowClients.map(client => client.postMessage({
+    const messageWork = windowClients.map(client => client.postMessage({
       type: 'mail.push.received',
       emailId: Number(payload.emailId) || 0,
-    })))
+    }))
 
-    const hasVisibleClient = windowClients.some(client => client.visibilityState === 'visible')
-    if (hasVisibleClient) return
+    const hasFocusedClient = windowClients.some(client => client.focused === true)
+    const sentAt = Number(payload.sentAt)
+    const notificationWork = hasFocusedClient
+      ? Promise.resolve()
+      : self.registration.showNotification(payload.title || 'Cloud Mail', {
+        body: payload.body || '收到新邮件',
+        icon: payload.icon || '/mail-pwa.png',
+        badge: payload.badge || '/mail-pwa.png',
+        tag: payload.tag || 'cloud-mail-new',
+        renotify: true,
+        timestamp: Number.isFinite(sentAt) && sentAt > 0 ? sentAt : Date.now(),
+        data: {url: payload.url || '/inbox', sentAt},
+      })
 
-    await self.registration.showNotification(payload.title || 'Cloud Mail', {
-      body: payload.body || '收到新邮件',
-      icon: payload.icon || '/mail-pwa.png',
-      badge: payload.badge || '/mail-pwa.png',
-      tag: payload.tag || 'cloud-mail-new',
-      data: {url: payload.url || '/inbox'},
-    })
+    await Promise.all([...messageWork, notificationWork])
   })())
 })
 
