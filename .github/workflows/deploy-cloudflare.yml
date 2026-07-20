@@ -32,6 +32,7 @@ jobs:
       LINUXDO_CLIENT_SECRET: ${{ secrets.LINUXDO_CLIENT_SECRET || vars.LINUXDO_CLIENT_SECRET }}
       LINUXDO_CALLBACK_URL: ${{ secrets.LINUXDO_CALLBACK_URL || vars.LINUXDO_CALLBACK_URL }}
       LINUXDO_SWITCH: ${{ secrets.LINUXDO_SWITCH || vars.LINUXDO_SWITCH }}
+      VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
 
 
     outputs:
@@ -239,6 +240,11 @@ jobs:
           
           echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
           echo "✅ Setup completed."
+
+      - name: Configure Web Push secret
+        if: env.VAPID_PRIVATE_KEY != ''
+        working-directory: ./mail-worker
+        run: printf '%s' "$VAPID_PRIVATE_KEY" | pnpm wrangler secret put VAPID_PRIVATE_KEY -c wrangler-action.toml
 
       - name: ♻️ 初始化数据库 / Initialize database
         run: |

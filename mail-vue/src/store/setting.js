@@ -9,11 +9,12 @@ export const useSettingStore = defineStore('setting', {
         },
         lang: '',
         mailNotificationsEnabled: false,
+        pushNotificationsEnabled: false,
     }),
     actions: {
 
     },
     persist: {
-        pick: ['lang', 'mailNotificationsEnabled'],
+        pick: ['lang', 'mailNotificationsEnabled', 'pushNotificationsEnabled'],
     },
 })

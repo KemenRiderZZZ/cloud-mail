@@ -8,6 +8,7 @@ import {useSettingStore} from '@/store/setting.js'
 import {useUserStore} from '@/store/user.js'
 import {hasPerm} from '@/perm/perm.js'
 import router from '@/router/index.js'
+import {enablePushNotifications} from '@/services/push-notifications.js'
 import {
     claimNotification,
     createSyncCoordinator,
@@ -187,7 +188,9 @@ export function createNewMailNotifier(t) {
             onClick: openInbox,
         })
 
-        if ('Notification' in window && Notification.permission === 'granted') {
+        if (!settingStore.pushNotificationsEnabled
+            && 'Notification' in window
+            && Notification.permission === 'granted') {
             try {
                 const notification = new Notification(title, {
                     body: message,
@@ -473,6 +476,11 @@ export function createNewMailNotifier(t) {
         if (leader && !connected) connectSocket(generation)
     }
 
+    function handleServiceWorkerMessage(message) {
+        if (!active || message.data?.type !== 'mail.push.received') return
+        requestSync({notify: leader}).catch(error => handleSyncError('Web Push sync failed', error))
+    }
+
     async function start() {
         if (active) return
 
@@ -490,6 +498,16 @@ export function createNewMailNotifier(t) {
         window.addEventListener('online', handleOnline)
         window.addEventListener('offline', handleOffline)
         document.addEventListener('visibilitychange', handleVisibilityChange)
+        navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage)
+
+        if (settingStore.mailNotificationsEnabled) {
+            enablePushNotifications({requestPermission: false}).then(state => {
+                settingStore.pushNotificationsEnabled = Boolean(state.subscribed)
+            }).catch(error => {
+                settingStore.pushNotificationsEnabled = false
+                console.warn('Web Push subscription refresh failed', error)
+            })
+        }
 
         try {
             const accounts = await loadAllAccounts(true)
@@ -522,6 +540,7 @@ export function createNewMailNotifier(t) {
         window.removeEventListener('online', handleOnline)
         window.removeEventListener('offline', handleOffline)
         document.removeEventListener('visibilitychange', handleVisibilityChange)
+        navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage)
         baselines.clear()
         knownIds.clear()
     }

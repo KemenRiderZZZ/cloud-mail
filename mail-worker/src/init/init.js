@@ -29,8 +29,36 @@ const dbInit = {
 		await this.v2_8DB(c);
 		await this.v2_9DB(c);
 		await this.v3_0DB(c);
+		await this.v3_1DB(c);
 		await settingService.refresh(c);
 		return c.text('success');
+	},
+
+	async v3_1DB(c) {
+		await c.env.db.batch([
+			c.env.db.prepare(`
+				CREATE TABLE IF NOT EXISTS push_subscription (
+					push_subscription_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					user_id INTEGER NOT NULL,
+					session_token TEXT NOT NULL,
+					endpoint TEXT NOT NULL,
+					p256dh TEXT NOT NULL,
+					auth TEXT NOT NULL,
+					expiration_time INTEGER,
+					user_agent TEXT NOT NULL DEFAULT '',
+					create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+				)
+			`),
+			c.env.db.prepare(`
+				CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscription_endpoint
+				ON push_subscription(endpoint)
+			`),
+			c.env.db.prepare(`
+				CREATE INDEX IF NOT EXISTS idx_push_subscription_user_id
+				ON push_subscription(user_id, update_time DESC)
+			`),
+		]);
 	},
 
 	async v3_0DB(c) {

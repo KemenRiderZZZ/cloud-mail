@@ -50,6 +50,7 @@
         </div>
         <el-switch
             :model-value="settingStore.mailNotificationsEnabled"
+            :loading="notificationLoading"
             @change="toggleMailNotifications"
         />
         <div class="preference-status">{{notificationStatus}}</div>
@@ -86,7 +87,7 @@
   </div>
 </template>
 <script setup>
-import {reactive, ref, defineOptions} from 'vue'
+import {reactive, ref, defineOptions, onMounted} from 'vue'
 import {resetPassword, userDelete} from "@/request/my.js";
 import {useUserStore} from "@/store/user.js";
 import router from "@/router/index.js";
@@ -94,6 +95,11 @@ import {accountSetName} from "@/request/account.js";
 import {useAccountStore} from "@/store/account.js";
 import {useI18n} from "vue-i18n";
 import {useSettingStore} from "@/store/setting.js";
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushNotificationState,
+} from '@/services/push-notifications.js'
 
 const { t } = useI18n()
 const accountStore = useAccountStore()
@@ -104,18 +110,28 @@ const setNameShow = ref(false)
 const accountName = ref(null)
 const langSelect = ref(settingStore.lang)
 const mailtoRegistrationStatus = ref('')
-const notificationStatus = ref(getNotificationStatus())
+const notificationStatus = ref('')
+const notificationLoading = ref(false)
 
 defineOptions({
   name: 'setting'
 })
 
-function getNotificationStatus() {
-  if (!('Notification' in window)) return t('desktopNotificationsUnsupported')
-  if (Notification.permission === 'granted') return t('desktopNotificationsGranted')
-  if (Notification.permission === 'denied') return t('desktopNotificationsDenied')
+function notificationStatusText(state) {
+  if (!state.supported) return t('pushNotificationsUnsupported')
+  if (state.permission === 'denied') return t('desktopNotificationsDenied')
+  if (state.subscribed) return t('pushNotificationsActive')
+  if (state.permission === 'granted') return t('pushNotificationsReady')
   return t('desktopNotificationsNotRequested')
 }
+
+async function refreshNotificationStatus() {
+  const state = await getPushNotificationState()
+  settingStore.pushNotificationsEnabled = Boolean(state.subscribed)
+  notificationStatus.value = notificationStatusText(state)
+}
+
+onMounted(() => refreshNotificationStatus())
 
 function registerMailtoHandler() {
   if (!navigator.registerProtocolHandler) {
@@ -137,22 +153,29 @@ function openDefaultApps() {
 }
 
 async function toggleMailNotifications(enabled) {
-  if (!enabled) {
-    settingStore.mailNotificationsEnabled = false
-    notificationStatus.value = getNotificationStatus()
-    return
-  }
-
-  if ('Notification' in window && Notification.permission === 'default') {
-    try {
-      await Notification.requestPermission()
-    } catch (error) {
-      console.error('notification permission request failed', error)
+  notificationLoading.value = true
+  try {
+    if (!enabled) {
+      settingStore.mailNotificationsEnabled = false
+      const state = await disablePushNotifications()
+      settingStore.pushNotificationsEnabled = false
+      notificationStatus.value = notificationStatusText(state)
+      return
     }
-  }
 
-  settingStore.mailNotificationsEnabled = true
-  notificationStatus.value = getNotificationStatus()
+    settingStore.mailNotificationsEnabled = true
+    try {
+      const state = await enablePushNotifications({requestPermission: true})
+      settingStore.pushNotificationsEnabled = Boolean(state.subscribed)
+      notificationStatus.value = notificationStatusText(state)
+    } catch (error) {
+      settingStore.pushNotificationsEnabled = false
+      notificationStatus.value = t('pushNotificationsSetupFailed')
+      console.error('Web Push setup failed', error)
+    }
+  } finally {
+    notificationLoading.value = false
+  }
 }
 
 function showSetName() {
@@ -216,7 +239,12 @@ const deleteConfirm = () => {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'
-  }).then(() => {
+  }).then(async () => {
+    try {
+      await disablePushNotifications()
+    } catch (error) {
+      console.warn('Web Push cleanup before account deletion failed', error)
+    }
     userDelete().then(() => {
       localStorage.removeItem('token');
       router.replace('/login');

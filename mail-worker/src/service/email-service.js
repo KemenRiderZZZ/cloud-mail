@@ -23,6 +23,7 @@ import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
 import { notifyUserMailChangedSafely } from './realtime-service';
+import { sendPushToUserSafely } from './push-service';
 
 const emailService = {
 
@@ -646,14 +647,25 @@ const emailService = {
 			}
 
 			if (emailRow.status === emailConst.status.RECEIVE && emailRow.userId > 0) {
-				changedByUser.set(emailRow.userId, Math.max(changedByUser.get(emailRow.userId) || 0, emailRow.emailId));
+				const current = changedByUser.get(emailRow.userId);
+				if (!current || Number(emailRow.emailId) > Number(current.emailId)) {
+					changedByUser.set(emailRow.userId, emailRow);
+				}
 			}
 
 		}
 
-		await Promise.all([...changedByUser].map(([userId, latestEmailId]) =>
-			notifyUserMailChangedSafely(c.env, userId, latestEmailId)
+		const notificationWork = Promise.all([...changedByUser].map(([userId, emailRow]) =>
+			Promise.all([
+				notifyUserMailChangedSafely(c.env, userId, emailRow.emailId),
+				sendPushToUserSafely(c.env, userId, emailRow),
+			])
 		));
+		try {
+			c.executionCtx.waitUntil(notificationWork);
+		} catch {
+			await notificationWork;
+		}
 
 		const bouncedEmail = emailDataList.find(emailRow => emailRow.status === emailConst.status.BOUNCED);
 

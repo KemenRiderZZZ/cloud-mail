@@ -37,9 +37,23 @@ This fork currently adds:
 
 - **`mailto:` compose entry point**: recipient, subject, and body are prefilled from a mail link. The authorized `admin@kamenr.com` account is selected, but sending always requires an explicit user action.
 - **Real-time inbox refresh**: while Cloud Mail is running, Cloudflare Durable Objects and WebSocket signals refresh incoming mail. Existing polling automatically acts as the fallback whenever the connection is unavailable.
-- **Runtime new-mail notifications**: in-app and system notifications can be enabled in Personal Settings. No Web Push is sent after the app is fully closed.
+- **Background new-mail notifications**: Personal Settings can enable in-app, system, and Web Push notifications. Supported phones can receive notifications after the installed Cloud Mail PWA is fully closed. Push payloads never include the message body.
 
 Anyone deploying this fork must configure their own Cloudflare Worker, D1, KV, R2, email routing, and domain variables. No production credentials, account data, or email content are stored in this repository. Please report upstream general-feature issues upstream; use this repository's Issues for this fork's deployment and custom features.
+
+### Web Push deployment
+
+Web Push uses a VAPID key pair. Store its private JWK only as a Cloudflare Worker Secret; never add it to `wrangler.toml` or commit it:
+
+```bash
+cd mail-worker
+node --input-type=module -e "import {generateVapidKeys,exportVapidKeys} from '@negrel/webpush'; const keys=await generateVapidKeys({extractable:true}); console.log(JSON.stringify(await exportVapidKeys(keys)))"
+pnpm wrangler secret put VAPID_PRIVATE_KEY
+```
+
+Paste the complete JSON printed by the first command into Wrangler. For GitHub Actions deployments, add the same JSON as the repository Actions secret `VAPID_PRIVATE_KEY`. The deployment's `/api/init/<JWT_SECRET>` call creates the `push_subscription` table automatically; `mail-worker/migrations/0001_push_subscriptions.sql` is also available for manual migration.
+
+After deployment, reopen or update the installed PWA and toggle Personal Settings → New mail notifications off and on once. On iPhone and iPad, install the PWA with Safari's Add to Home Screen first; a regular Safari tab cannot receive background Web Push.
 
 ## Description
 With only one domain, you can create multiple different email addresses, similar to major email platforms. This project can be deployed on Cloudflare Workers to reduce server costs and build your own email service.

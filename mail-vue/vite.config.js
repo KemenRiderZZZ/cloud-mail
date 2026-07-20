@@ -38,6 +38,7 @@ export default defineConfig(({mode}) => {
                     ],
                 },
                 workbox: {
+                    importScripts: ['push-sw.js'],
                     disableDevLogs: true,
                     globPatterns: [],
                     runtimeCaching: [],

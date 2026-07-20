@@ -85,6 +85,7 @@ import {useSettingStore} from "@/store/setting.js";
 import {hasPerm} from "@/perm/perm.js"
 import {useI18n} from "vue-i18n";
 import {setExtend} from "@/utils/day.js"
+import {disablePushNotifications} from '@/services/push-notifications.js'
 
 const {t} = useI18n();
 const route = useRoute();
@@ -240,8 +241,13 @@ function changeAside() {
   uiStore.asideShow = !uiStore.asideShow
 }
 
-function clickLogout() {
+async function clickLogout() {
   logoutLoading.value = true
+  try {
+    await disablePushNotifications()
+  } catch (error) {
+    console.warn('Web Push cleanup before logout failed', error)
+  }
   logout().then(() => {
     localStorage.removeItem("token")
     router.replace('/login')

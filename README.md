@@ -37,9 +37,23 @@
 
 - **`mailto:` 写信入口**：支持从邮件链接预填收件人、主题和正文；发件账号固定为已授权的 `admin@kamenr.com`，仍须由用户手动点击发送。
 - **实时收件刷新**：Cloud Mail 运行时通过 Cloudflare Durable Objects + WebSocket 通知邮件变更，连接中断时自动退回现有轮询机制，避免手动刷新才能看到新邮件。
-- **运行时新邮件提醒**：可在个人设置中启用站内与系统通知；应用完全关闭后不会使用 Web Push 推送。
+- **后台新邮件提醒**：可在个人设置中启用站内、系统和 Web Push 通知；在受支持的手机上，即使完全关闭已安装的 Cloud Mail PWA，仍可收到新邮件通知。推送不包含邮件正文。
 
 部署本 fork 时请自行配置 Cloudflare Worker、D1、KV、R2、邮件路由和域名变量；仓库不包含生产密钥、账号或邮件内容。上游通用功能问题请优先向上游反馈；本 fork 的部署与上述定制功能问题请在本仓库提交 Issue。
+
+### Web Push 部署配置
+
+Web Push 使用一组 VAPID 密钥。私钥必须作为 Cloudflare Worker Secret 保存，禁止写入 `wrangler.toml` 或提交到仓库：
+
+```bash
+cd mail-worker
+node --input-type=module -e "import {generateVapidKeys,exportVapidKeys} from '@negrel/webpush'; const keys=await generateVapidKeys({extractable:true}); console.log(JSON.stringify(await exportVapidKeys(keys)))"
+pnpm wrangler secret put VAPID_PRIVATE_KEY
+```
+
+将第一条命令输出的完整 JSON 粘贴给 Wrangler。GitHub Actions 部署时，请在仓库 Actions secrets 中设置同名的 `VAPID_PRIVATE_KEY`。部署流程会通过 `/api/init/<JWT_SECRET>` 自动创建 `push_subscription` 表；也可以手动执行 `mail-worker/migrations/0001_push_subscriptions.sql`。
+
+手机端部署后需要重新打开或更新已安装的 PWA，然后在“个人设置—新邮件提醒”中关闭再开启一次。iPhone/iPad 必须先使用 Safari 的“添加到主屏幕”安装 PWA；普通 Safari 标签页不能接收后台 Web Push。
 
 
 ## 项目简介
